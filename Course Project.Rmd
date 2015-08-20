@@ -1,0 +1,153 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Tracy Yong"
+date: "Monday, August 17, 2015"
+output: html_document
+---
+
+#Synopsis
+
+###Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+###Data 
+
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.  
+
+
+#Data Processing
+
+###Loading required libraries
+
+```{r}
+library(caret)
+library(randomForest)
+```
+
+###Downloading data
+
+Training and Testing Data is downloaded from online source.
+
+```{r}
+#Downloading the training data set
+url1 <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(url1, destfile="pml-training.csv")
+
+#Downloading the testing data set
+url2 <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url2, destfile="pml-testing.csv")
+```
+
+###Loading data
+
+```{r}
+#Loading the training data set
+dataTrain <- read.csv("pml-training.csv", header=TRUE, na.strings=c("NA","#DIV/0!", ""))
+
+#Loading the testing data set
+dataTest <- read.csv("pml-testing.csv", header=TRUE, na.strings=c("NA","#DIV/0!", ""))
+```
+
+###Cleansing Data
+Some columns that contained invalid values such as NA’s and blanks were dropped.
+
+```{r}
+# Delete columns with all missing values
+dataTrain <- dataTrain[,colSums(is.na(dataTrain)) == 0]
+dataTest <- dataTest[,colSums(is.na(dataTest)) == 0]
+```
+
+Some columns that were irrelevant to our current project were dropped.
+
+The following fields removed included:
+
+* the unlabled row index
+
+* user_name
+
+* raw_timestamp_part_1 
+
+* raw_timestamp_part_2
+
+* cvtd_timestamp
+
+* new_window
+
+* num_window
+
+
+```{r}
+# Delete columns with irrelevant values
+dataTrain <- dataTrain[,-c(1:7)]
+dataTest <- dataTest[,-c(1:7)]
+
+# Describe training and testing dataset
+dim(dataTrain)
+dim(dataTest)
+```
+
+The training data set contains 53 variables and 19622 obs.
+
+The testing data set contains 53 variables and 20 obs.
+
+#Cross validation 
+
+Cross validation was achieved by splitting the training data.
+
+The training data set was partionned into 2 sets: subTraining (75%) and subTesting (25%), using random subsampling without replacement.
+
+```{r}
+subsamples <- createDataPartition(y=dataTrain$classe, p=0.75, list=FALSE)
+
+subTraining <- dataTrain[subsamples, ] 
+subTesting <- dataTrain[-subsamples, ]
+
+# Describe cross validation dataset
+dim(subTraining)
+dim(subTesting)
+```
+
+The subTraining data set contains 53 variables and 14718 obs.
+
+The subTesting data set contains 53 variables and 4904 obs.
+
+#Prediction Model
+
+The Random Forest was used to perform the prediction.
+
+```{r}
+modelPredict <- randomForest(classe ~. , data=subTraining, method="class")
+
+Prediction <- predict(modelPredict, subTesting, type = "class")
+
+# Test results on subTesting data set:
+confusionMatrix(Prediction, subTesting$classe)
+```
+
+Accuracy for Random Forest model was 0.9965 (95% CI: (0.9945, 0.998)).   The expected out-of-sample error is estimated at 0.0035, or 0.35%. 
+The expected out-of-sample error is calculated as 1 - accuracy for predictions made against the cross-validation set.  With an accuracy above 99% on our cross-validation data, we can expect that very small number of test samples will be missclassified.
+
+#Prediction Assignment Submission
+
+```{r}
+# Predict outcome levels on the downloaded Testing dataset using Random Forest Algorithm
+modelPredictResult <- predict(modelPredict, dataTest, type="class")
+
+# Write files for submission
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(modelPredictResult)
+```
